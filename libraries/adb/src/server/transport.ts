@@ -1,6 +1,5 @@
 import { PromiseResolver } from "@yume-chan/async";
 import { AbortController } from "@yume-chan/stream-extra";
-import type { ValueOrPromise } from "@yume-chan/struct";
 
 import type {
     AdbIncomingSocketHandler,
@@ -87,19 +86,20 @@ export class AdbServerTransport implements AdbTransport {
         handler: AdbIncomingSocketHandler,
         address?: string,
     ): Promise<string> {
-        return await this.#client.connection.addReverseTunnel(handler, address);
+        return await this.#client.connector.addReverseTunnel(handler, address);
     }
 
     async removeReverseTunnel(address: string): Promise<void> {
-        await this.#client.connection.removeReverseTunnel(address);
+        await this.#client.connector.removeReverseTunnel(address);
     }
 
     async clearReverseTunnels(): Promise<void> {
-        await this.#client.connection.clearReverseTunnels();
+        await this.#client.connector.clearReverseTunnels();
     }
 
-    close(): ValueOrPromise<void> {
+    [Symbol.asyncDispose](): Promise<void> {
         this.#closed.resolve();
         this.#waitAbortController.abort();
+        return Promise.resolve();
     }
 }

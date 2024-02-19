@@ -103,15 +103,32 @@ export class AdbScrcpyClient {
         file: ReadableStream<Consumable<Uint8Array>>,
         filename = DEFAULT_SERVER_PATH,
     ) {
-        const sync = await adb.sync();
+        await using sync = await adb.sync();
+        await sync.write({
+            filename,
+            file,
+        });
+    }
+
+    static async #createConnection(
+        adb: Adb,
+        options: AdbScrcpyOptions<object>,
+    ) {
         try {
-            await sync.write({
-                filename,
-                file,
-            });
-        } finally {
-            await sync.dispose();
+            const connection = options.createConnection(adb);
+            await connection.initialize();
+            return connection;
+        } catch (e) {
+            if (!(e instanceof AdbReverseNotSupportedError)) {
+                throw e;
+            }
         }
+
+        // When reverse tunnel is not supported, try forward tunnel.
+        options.tunnelForwardOverride = true;
+        const connection = options.createConnection(adb);
+        await connection.initialize();
+        return connection;
     }
 
     static async start(
@@ -120,25 +137,13 @@ export class AdbScrcpyClient {
         version: string,
         options: AdbScrcpyOptions<object>,
     ) {
-        let connection: AdbScrcpyConnection | undefined;
+        using connection: AdbScrcpyConnection = await this.#createConnection(
+            adb,
+            options,
+        );
+
         let process: AdbSubprocessProtocol | undefined;
-
         try {
-            try {
-                connection = options.createConnection(adb);
-                await connection.initialize();
-            } catch (e) {
-                if (e instanceof AdbReverseNotSupportedError) {
-                    // When reverse tunnel is not supported, try forward tunnel.
-                    options.tunnelForwardOverride = true;
-                    connection = options.createConnection(adb);
-                    await connection.initialize();
-                } else {
-                    connection = undefined;
-                    throw e;
-                }
-            }
-
             process = await adb.subprocess.spawn(
                 [
                     // cspell: disable-next-line
@@ -204,8 +209,6 @@ export class AdbScrcpyClient {
         } catch (e) {
             await process?.kill();
             throw e;
-        } finally {
-            connection?.dispose();
         }
     }
 

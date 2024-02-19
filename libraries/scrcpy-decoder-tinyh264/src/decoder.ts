@@ -101,7 +101,7 @@ export class TinyH264Decoder implements ScrcpyVideoDecoder {
     }
 
     async #configure(data: Uint8Array) {
-        this.dispose();
+        this[Symbol.dispose]();
 
         this.#initializer = new PromiseResolver<TinyH264Wrapper>();
         const { YuvBuffer, YuvCanvas } = await initialize();
@@ -161,9 +161,9 @@ export class TinyH264Decoder implements ScrcpyVideoDecoder {
         wrapper.feed(data.slice().buffer);
     }
 
-    dispose(): void {
+    [Symbol.dispose](): void {
         this.#initializer?.promise
-            .then((wrapper) => wrapper.dispose())
+            .then((wrapper) => wrapper[Symbol.dispose]())
             // NOOP: It's disposed so nobody cares about the error
             .catch(NOOP);
         this.#initializer = undefined;

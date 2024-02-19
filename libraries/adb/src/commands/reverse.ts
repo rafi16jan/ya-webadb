@@ -1,6 +1,5 @@
 // cspell: ignore killforward
 
-import { AutoDisposable } from "@yume-chan/event";
 import { BufferedReadableStream } from "@yume-chan/stream-extra";
 import Struct, { ExactReadableEndedError } from "@yume-chan/struct";
 
@@ -52,14 +51,12 @@ async function readString(stream: BufferedReadableStream, length: number) {
     return decodeUtf8(buffer);
 }
 
-export class AdbReverseCommand extends AutoDisposable {
+export class AdbReverseCommand {
     protected adb: Adb;
 
     readonly #deviceAddressToLocalAddress = new Map<string, string>();
 
     constructor(adb: Adb) {
-        super();
-
         this.adb = adb;
     }
 

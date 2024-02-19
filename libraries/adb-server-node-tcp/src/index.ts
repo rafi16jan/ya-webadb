@@ -6,6 +6,7 @@ import type {
     AdbServerConnection,
     AdbServerConnectionOptions,
     AdbServerConnector,
+    AdbSocket,
 } from "@yume-chan/adb";
 import {
     PushReadableStream,
@@ -58,8 +59,9 @@ function nodeSocketToConnection(socket: Socket): AdbServerConnection {
         get closed() {
             return closed;
         },
-        close() {
+        [Symbol.asyncDispose]() {
             socket.end();
+            return Promise.resolve();
         },
     };
 }
@@ -105,10 +107,13 @@ export class AdbServerNodeTcpConnector implements AdbServerConnector {
                     get closed() {
                         return connection.closed;
                     },
-                    async close() {
-                        await connection.close();
+                    async [Symbol.asyncDispose]() {
+                        await connection[Symbol.asyncDispose]();
                     },
-                });
+                    async close() {
+                        await this[Symbol.asyncDispose]();
+                    },
+                } satisfies AdbSocket);
             } catch {
                 socket.end();
             }

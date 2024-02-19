@@ -1,4 +1,3 @@
-import type { Disposable } from "./disposable.js";
 import type { EventListener, RemoveEventListener } from "./event.js";
 
 export interface EventListenerInfo<TEvent, TResult = unknown> {
@@ -38,7 +37,7 @@ export class EventEmitter<TEvent, TResult = unknown> implements Disposable {
                 this.listeners.splice(index, 1);
             }
         };
-        remove.dispose = remove;
+        remove[Symbol.dispose] = remove;
         return remove;
     }
 
@@ -66,7 +65,7 @@ export class EventEmitter<TEvent, TResult = unknown> implements Disposable {
         }
     }
 
-    dispose() {
+    [Symbol.dispose]() {
         this.listeners.length = 0;
     }
 }

@@ -1,18 +1,27 @@
-export function escapeArg(s: string) {
+/**
+ * Escapes single quotes in the input string.
+ */
+export function escapeArg(input: string) {
+    // For example, a'b becomes 'a'\''b'.
+    //
+    // It's the concatenation of:
+    //
+    // * 'a' (a single-quoted string containing a character A)
+    // * \' (an escaped single quote character)
+    // * 'b' (a single-quoted string containing a character B)
     let result = "";
     result += `'`;
 
-    let base = 0;
+    let start = 0;
     while (true) {
-        const found = s.indexOf(`'`, base);
-        if (found === -1) {
-            result += s.substring(base);
+        const index = input.indexOf(`'`, start);
+        if (index === -1) {
+            result += input.substring(start);
             break;
         }
-        result += s.substring(base, found);
-        // a'b becomes a'\'b (the backslash is not a escape character)
+        result += input.substring(start, index);
         result += String.raw`'\''`;
-        base = found + 1;
+        start = index + 1;
     }
 
     result += `'`;

@@ -15,7 +15,7 @@ import {
 } from "@yume-chan/stream-extra";
 import { EMPTY_UINT8_ARRAY, NumberFieldType } from "@yume-chan/struct";
 
-import type { AdbIncomingSocketHandler, AdbSocket, Closeable } from "../adb.js";
+import type { AdbIncomingSocketHandler, AdbSocket } from "../adb.js";
 import { decodeUtf8, encodeUtf8 } from "../utils/index.js";
 
 import type { AdbPacketData, AdbPacketInit } from "./packet.js";
@@ -61,7 +61,7 @@ interface SocketOpenResult {
  * The `Adb` class is responsible for doing the authentication,
  * negotiating the options, and has shortcuts to high-level services.
  */
-export class AdbPacketDispatcher implements Closeable {
+export class AdbPacketDispatcher implements AsyncDisposable {
     // ADB socket id starts from 1
     // (0 means open failed)
     readonly #initializers = new AsyncOperationManager(1);
@@ -174,7 +174,7 @@ export class AdbPacketDispatcher implements Closeable {
         const socket = this.#sockets.get(packet.arg1);
         if (socket) {
             await socket.close();
-            socket.dispose();
+            socket[Symbol.dispose]();
             this.#sockets.delete(packet.arg1);
             return;
         }
@@ -385,7 +385,7 @@ export class AdbPacketDispatcher implements Closeable {
         });
     }
 
-    async close() {
+    async [Symbol.asyncDispose]() {
         // Send `CLSE` packets for all sockets
         await Promise.all(
             Array.from(this.#sockets.values(), (socket) => socket.close()),
@@ -408,7 +408,7 @@ export class AdbPacketDispatcher implements Closeable {
 
     #dispose() {
         for (const socket of this.#sockets.values()) {
-            socket.dispose();
+            socket[Symbol.dispose]();
         }
 
         this.#disconnected.resolve();

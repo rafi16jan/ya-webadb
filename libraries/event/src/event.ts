@@ -1,5 +1,3 @@
-import type { Disposable } from "./disposable.js";
-
 export interface EventListener<
     TEvent,
     TThis,

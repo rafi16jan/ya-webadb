@@ -1,4 +1,4 @@
-import type { Disposable, Event } from "@yume-chan/event";
+import type { Event } from "@yume-chan/event";
 import type {
     ScrcpyMediaStreamPacket,
     ScrcpyVideoCodecId,

@@ -36,24 +36,20 @@ export async function* adbSyncOpenDirV2(
     socket: AdbSyncSocket,
     path: string,
 ): AsyncGenerator<AdbSyncEntry2Response, void, void> {
-    const locked = await socket.lock();
-    try {
-        await adbSyncWriteRequest(locked, AdbSyncRequestId.ListV2, path);
-        for await (const item of adbSyncReadResponses(
-            locked,
-            AdbSyncResponseId.Entry2,
-            AdbSyncEntry2Response,
-        )) {
-            // `LST2` can return error codes for failed `lstat` calls.
-            // `LIST` just ignores them.
-            // But they only contain `name` so still pretty useless.
-            if (item.error !== AdbSyncStatErrorCode.SUCCESS) {
-                continue;
-            }
-            yield item;
+    using locked = await socket.lock();
+    await adbSyncWriteRequest(locked, AdbSyncRequestId.ListV2, path);
+    for await (const item of adbSyncReadResponses(
+        locked,
+        AdbSyncResponseId.Entry2,
+        AdbSyncEntry2Response,
+    )) {
+        // `LST2` can return error codes for failed `lstat` calls.
+        // `LIST` just ignores them.
+        // But they only contain `name` so still pretty useless.
+        if (item.error !== AdbSyncStatErrorCode.SUCCESS) {
+            continue;
         }
-    } finally {
-        locked.release();
+        yield item;
     }
 }
 
@@ -61,18 +57,14 @@ export async function* adbSyncOpenDirV1(
     socket: AdbSyncSocket,
     path: string,
 ): AsyncGenerator<AdbSyncEntryResponse, void, void> {
-    const locked = await socket.lock();
-    try {
-        await adbSyncWriteRequest(locked, AdbSyncRequestId.List, path);
-        for await (const item of adbSyncReadResponses(
-            locked,
-            AdbSyncResponseId.Entry,
-            AdbSyncEntryResponse,
-        )) {
-            yield item;
-        }
-    } finally {
-        locked.release();
+    using locked = await socket.lock();
+    await adbSyncWriteRequest(locked, AdbSyncRequestId.List, path);
+    for await (const item of adbSyncReadResponses(
+        locked,
+        AdbSyncResponseId.Entry,
+        AdbSyncEntryResponse,
+    )) {
+        yield item;
     }
 }
 

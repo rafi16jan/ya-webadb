@@ -15,23 +15,26 @@ import {
 } from "./commands/index.js";
 import type { AdbFeature } from "./features.js";
 
-export interface Closeable {
-    close(): ValueOrPromise<void>;
-}
-
 export interface AdbSocket
     extends ReadableWritablePair<Uint8Array, Consumable<Uint8Array>>,
-        Closeable {
+        AsyncDisposable {
     get service(): string;
 
     get closed(): Promise<void>;
+
+    /**
+     * Close the socket.
+     *
+     * Alias for `Symbol.asyncDispose`.
+     */
+    close(): Promise<void>;
 }
 
 export type AdbIncomingSocketHandler = (
     socket: AdbSocket,
 ) => ValueOrPromise<void>;
 
-export interface AdbTransport extends Closeable {
+export interface AdbTransport extends AsyncDisposable {
     readonly serial: string;
 
     readonly maxPayloadSize: number;
@@ -54,7 +57,7 @@ export interface AdbTransport extends Closeable {
     clearReverseTunnels(): ValueOrPromise<void>;
 }
 
-export class Adb implements Closeable {
+export class Adb implements AsyncDisposable {
     readonly transport: AdbTransport;
 
     get serial() {
@@ -154,7 +157,19 @@ export class Adb implements Closeable {
         return framebuffer(this);
     }
 
-    async close(): Promise<void> {
-        await this.transport.close();
+    /**
+     * Close the underlying transport.
+     */
+    async [Symbol.asyncDispose](): Promise<void> {
+        await this.transport[Symbol.asyncDispose]();
+    }
+
+    /**
+     * Close the underlying transport.
+     *
+     * Alias for `Symbol.asyncDispose`.
+     */
+    async close() {
+        await this[Symbol.asyncDispose]();
     }
 }

@@ -1,5 +1,4 @@
 import { PromiseResolver } from "@yume-chan/async";
-import type { Disposable } from "@yume-chan/event";
 
 export class AutoResetEvent implements Disposable {
     #set: boolean;
@@ -31,7 +30,7 @@ export class AutoResetEvent implements Disposable {
         }
     }
 
-    dispose() {
+    [Symbol.dispose]() {
         for (const item of this.#queue) {
             item.reject(new Error("The AutoResetEvent has been disposed"));
         }

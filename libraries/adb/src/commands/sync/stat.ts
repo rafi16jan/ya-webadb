@@ -105,37 +105,33 @@ export async function adbSyncLstat(
     path: string,
     v2: boolean,
 ): Promise<AdbSyncStat> {
-    const locked = await socket.lock();
-    try {
-        if (v2) {
-            await adbSyncWriteRequest(locked, AdbSyncRequestId.LstatV2, path);
-            return await adbSyncReadResponse(
-                locked,
-                AdbSyncResponseId.Lstat2,
-                AdbSyncStatResponse,
-            );
-        } else {
-            await adbSyncWriteRequest(locked, AdbSyncRequestId.Lstat, path);
-            const response = await adbSyncReadResponse(
-                locked,
-                AdbSyncResponseId.Lstat,
-                AdbSyncLstatResponse,
-            );
-            return {
-                mode: response.mode,
-                // Convert to `BigInt` to make it compatible with `AdbSyncStatResponse`
-                size: BigInt(response.size),
-                mtime: BigInt(response.mtime),
-                get type() {
-                    return response.type;
-                },
-                get permission() {
-                    return response.permission;
-                },
-            };
-        }
-    } finally {
-        locked.release();
+    using locked = await socket.lock();
+    if (v2) {
+        await adbSyncWriteRequest(locked, AdbSyncRequestId.LstatV2, path);
+        return await adbSyncReadResponse(
+            locked,
+            AdbSyncResponseId.Lstat2,
+            AdbSyncStatResponse,
+        );
+    } else {
+        await adbSyncWriteRequest(locked, AdbSyncRequestId.Lstat, path);
+        const response = await adbSyncReadResponse(
+            locked,
+            AdbSyncResponseId.Lstat,
+            AdbSyncLstatResponse,
+        );
+        return {
+            mode: response.mode,
+            // Convert to `BigInt` to make it compatible with `AdbSyncStatResponse`
+            size: BigInt(response.size),
+            mtime: BigInt(response.mtime),
+            get type() {
+                return response.type;
+            },
+            get permission() {
+                return response.permission;
+            },
+        };
     }
 }
 
@@ -143,15 +139,11 @@ export async function adbSyncStat(
     socket: AdbSyncSocket,
     path: string,
 ): Promise<AdbSyncStatResponse> {
-    const locked = await socket.lock();
-    try {
-        await adbSyncWriteRequest(locked, AdbSyncRequestId.Stat, path);
-        return await adbSyncReadResponse(
-            locked,
-            AdbSyncResponseId.Stat,
-            AdbSyncStatResponse,
-        );
-    } finally {
-        locked.release();
-    }
+    using locked = await socket.lock();
+    await adbSyncWriteRequest(locked, AdbSyncRequestId.Stat, path);
+    return await adbSyncReadResponse(
+        locked,
+        AdbSyncResponseId.Stat,
+        AdbSyncStatResponse,
+    );
 }

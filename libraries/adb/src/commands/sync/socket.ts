@@ -12,7 +12,7 @@ import type { AsyncExactReadable } from "@yume-chan/struct";
 import type { AdbSocket } from "../../adb.js";
 import { AutoResetEvent } from "../../utils/index.js";
 
-export class AdbSyncSocketLocked implements AsyncExactReadable {
+export class AdbSyncSocketLocked implements AsyncExactReadable, Disposable {
     readonly #writer: WritableStreamDefaultWriter<Consumable<Uint8Array>>;
     readonly #readable: BufferedReadableStream;
     readonly #socketLock: AutoResetEvent;
@@ -67,7 +67,7 @@ export class AdbSyncSocketLocked implements AsyncExactReadable {
         return await this.#readable.readExactly(length);
     }
 
-    release(): void {
+    [Symbol.dispose](): void {
         this.#combiner.flush();
         this.#socketLock.notifyOne();
     }
@@ -98,6 +98,7 @@ export class AdbSyncSocket {
     }
 
     async close() {
+        this.#lock[Symbol.dispose]();
         await this.#locked.close();
         await this.#socket.close();
     }

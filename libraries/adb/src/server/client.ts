@@ -17,14 +17,13 @@ import type {
     ValueOrPromise,
 } from "@yume-chan/struct";
 import {
-    BigIntFieldType,
     EMPTY_UINT8_ARRAY,
     SyncPromise,
     decodeUtf8,
     encodeUtf8,
 } from "@yume-chan/struct";
 
-import type { AdbIncomingSocketHandler, AdbSocket, Closeable } from "../adb.js";
+import type { AdbIncomingSocketHandler, AdbSocket } from "../adb.js";
 import { AdbBanner } from "../banner.js";
 import type { AdbFeature } from "../features.js";
 import { NOOP, hexToNumber, numberToHex, unreachable } from "../utils/index.js";
@@ -38,7 +37,7 @@ export interface AdbServerConnectionOptions {
 
 export interface AdbServerConnection
     extends ReadableWritablePair<Uint8Array, Uint8Array>,
-        Closeable {
+        AsyncDisposable {
     get closed(): Promise<void>;
 }
 
@@ -79,10 +78,10 @@ export interface AdbServerDevice {
 export class AdbServerClient {
     static readonly VERSION = 41;
 
-    readonly connection: AdbServerConnector;
+    readonly connector: AdbServerConnector;
 
-    constructor(connection: AdbServerConnector) {
-        this.connection = connection;
+    constructor(connector: AdbServerConnector) {
+        this.connector = connector;
     }
 
     static readString(stream: ExactReadable): string;
@@ -136,53 +135,46 @@ export class AdbServerClient {
         request: string,
         options?: AdbServerConnectionOptions,
     ): Promise<AdbServerConnection> {
-        const connection = await this.connection.connect(options);
+        await using stack = new AsyncDisposableStack();
 
-        try {
-            const writer = connection.writable.getWriter();
-            await AdbServerClient.writeString(writer, request);
-            writer.releaseLock();
-        } catch (e) {
-            await connection.readable.cancel();
-            await connection.close();
-            throw e;
-        }
+        const connection = await this.connector.connect(options);
+        stack.use(connection);
 
         const readable = new BufferedReadableStream(connection.readable);
-        try {
-            // `raceSignal` throws when the signal is aborted,
-            // so the `catch` block can close the connection.
-            await raceSignal(
-                () => AdbServerClient.readOkay(readable),
-                options?.signal,
-            );
+        stack.defer(() => readable.cancel());
 
-            return {
-                readable: readable.release(),
-                writable: connection.writable,
-                get closed() {
-                    return connection.closed;
-                },
-                async close() {
-                    await connection.close();
-                },
-            };
-        } catch (e) {
-            await readable.cancel().catch(NOOP);
-            await connection.close();
-            throw e;
-        }
+        const writer = connection.writable.getWriter();
+        await AdbServerClient.writeString(writer, request);
+        writer.releaseLock();
+
+        // `raceSignal` throws when the signal is aborted,
+        // so the `catch` block can close the connection.
+        await raceSignal(
+            () => AdbServerClient.readOkay(readable),
+            options?.signal,
+        );
+
+        stack.move();
+        return {
+            readable: readable.release(),
+            writable: connection.writable,
+            get closed() {
+                return connection.closed;
+            },
+            async [Symbol.asyncDispose]() {
+                await connection[Symbol.asyncDispose]();
+            },
+        };
     }
 
     async getVersion(): Promise<number> {
-        const connection = await this.connect("host:version");
+        await using connection = await this.connect("host:version");
         const readable = new BufferedReadableStream(connection.readable);
         try {
             const length = hexToNumber(await readable.readExactly(4));
             const version = hexToNumber(await readable.readExactly(length));
             return version;
         } finally {
-            connection.writable.close().catch(NOOP);
             readable.cancel().catch(NOOP);
         }
     }
@@ -203,13 +195,12 @@ export class AdbServerClient {
     }
 
     async getServerFeatures(): Promise<AdbFeature[]> {
-        const connection = await this.connect("host:host-features");
+        await using connection = await this.connect("host:host-features");
         const readable = new BufferedReadableStream(connection.readable);
         try {
             const response = await AdbServerClient.readString(readable);
             return response.split(",") as AdbFeature[];
         } finally {
-            connection.writable.close().catch(NOOP);
             readable.cancel().catch(NOOP);
         }
     }
@@ -264,13 +255,12 @@ export class AdbServerClient {
     }
 
     async getDevices(): Promise<AdbServerDevice[]> {
-        const connection = await this.connect("host:devices-l");
+        await using connection = await this.connect("host:devices-l");
         const readable = new BufferedReadableStream(connection.readable);
         try {
             const response = await AdbServerClient.readString(readable);
             return this.parseDeviceList(response);
         } finally {
-            connection.writable.close().catch(NOOP);
             readable.cancel().catch(NOOP);
         }
     }
@@ -295,7 +285,7 @@ export class AdbServerClient {
         return () => {
             running = false;
             readable.cancel().catch(NOOP);
-            Promise.resolve(connection.close()).catch(NOOP);
+            connection[Symbol.asyncDispose]().then(NOOP, NOOP);
         };
     }
 
@@ -335,15 +325,11 @@ export class AdbServerClient {
         // Also, if the command is about a device, but didn't specify a selector,
         // it will be executed against the device selected previously by `connectDevice`.
         // Using this method, we can get the transport ID and device features in one connection.
-        const socket = await this.connectDevice(device, "host:features");
-        try {
-            const readable = new BufferedReadableStream(socket.readable);
-            const featuresString = await AdbServerClient.readString(readable);
-            const features = featuresString.split(",") as AdbFeature[];
-            return { transportId: socket.transportId, features };
-        } finally {
-            await socket.close();
-        }
+        await using socket = await this.connectDevice(device, "host:features");
+        const readable = new BufferedReadableStream(socket.readable);
+        const featuresString = await AdbServerClient.readString(readable);
+        const features = featuresString.split(",") as AdbFeature[];
+        return { transportId: socket.transportId, features };
     }
 
     /**
@@ -375,52 +361,58 @@ export class AdbServerClient {
             throw new Error("Invalid device selector");
         }
 
-        const connection = await this.connect(switchService);
+        await using stack = new AsyncDisposableStack();
 
-        try {
-            const writer = connection.writable.getWriter();
-            await AdbServerClient.writeString(writer, service);
-            writer.releaseLock();
-        } catch (e) {
-            await connection.readable.cancel();
-            await connection.close();
-            throw e;
-        }
+        const connection = await this.connect(switchService);
+        stack.use(connection);
 
         const readable = new BufferedReadableStream(connection.readable);
-        try {
-            if (transportId === undefined) {
-                const array = await readable.readExactly(8);
-                // TODO: switch to a more performant algorithm.
-                const dataView = new DataView(
-                    array.buffer,
-                    array.byteOffset,
-                    array.byteLength,
-                );
-                transportId = BigIntFieldType.Uint64.getter(dataView, 0, true);
-            }
+        stack.defer(() => readable.cancel());
 
-            await AdbServerClient.readOkay(readable);
+        const writer = connection.writable.getWriter();
+        await AdbServerClient.writeString(writer, service);
+        writer.releaseLock();
 
-            return {
-                transportId,
-                service,
-                readable: readable.release(),
-                writable: new WrapWritableStream(
-                    connection.writable,
-                ).bePipedThroughFrom(new UnwrapConsumableStream()),
-                get closed() {
-                    return connection.closed;
-                },
-                async close() {
-                    await connection.close();
-                },
-            };
-        } catch (e) {
-            await readable.cancel().catch(NOOP);
-            await connection.close();
-            throw e;
+        if (transportId === undefined) {
+            const array = await readable.readExactly(8);
+            transportId =
+                BigInt(
+                    (array[0]! |
+                        (array[1]! << 8) |
+                        (array[2]! << 16) |
+                        (array[3]! << 24)) >>>
+                        0,
+                ) |
+                (BigInt(
+                    (array[4]! |
+                        (array[5]! << 8) |
+                        (array[6]! << 16) |
+                        (array[7]! << 24)) >>>
+                        0,
+                ) <<
+                    32n);
         }
+
+        await AdbServerClient.readOkay(readable);
+
+        stack.move();
+        return {
+            transportId,
+            service,
+            readable: readable.release(),
+            writable: new WrapWritableStream(
+                connection.writable,
+            ).bePipedThroughFrom(new UnwrapConsumableStream()),
+            get closed() {
+                return connection.closed;
+            },
+            async [Symbol.asyncDispose]() {
+                await connection[Symbol.asyncDispose]();
+            },
+            async close() {
+                await this[Symbol.asyncDispose]();
+            },
+        } satisfies AdbServerSocket;
     }
 
     /**
@@ -457,12 +449,11 @@ export class AdbServerClient {
             `wait-for-${type}-${state}`,
         );
 
-        const socket = await this.connect(service, options);
-        const readable = new BufferedReadableStream(socket.readable);
+        await using connection = await this.connect(service, options);
+        const readable = new BufferedReadableStream(connection.readable);
         await AdbServerClient.readOkay(readable);
 
         await readable.cancel();
-        await socket.close();
     }
 
     async createTransport(

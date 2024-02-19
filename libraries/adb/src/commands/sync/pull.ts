@@ -18,7 +18,7 @@ export async function* adbSyncPullGenerator(
     socket: AdbSyncSocket,
     path: string,
 ): AsyncGenerator<Uint8Array, void, void> {
-    const locked = await socket.lock();
+    using locked = await socket.lock();
     let done = false;
     try {
         await adbSyncWriteRequest(locked, AdbSyncRequestId.Receive, path);
@@ -44,7 +44,6 @@ export async function* adbSyncPullGenerator(
                 void packet;
             }
         }
-        locked.release();
     }
 }
 

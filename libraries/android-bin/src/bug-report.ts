@@ -318,7 +318,7 @@ export class BugReport extends AdbCommandBase {
             const controller = new AbortController();
             const cleanup = async () => {
                 controller.abort();
-                await sync?.dispose();
+                await sync?.[Symbol.asyncDispose]();
                 if (path) {
                     await this.adb.rm(path);
                 }

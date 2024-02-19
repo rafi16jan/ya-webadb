@@ -1,7 +1,6 @@
 import type { Adb, AdbSocket } from "@yume-chan/adb";
 import { AdbReverseNotSupportedError, NOOP } from "@yume-chan/adb";
 import { delay } from "@yume-chan/async";
-import type { Disposable } from "@yume-chan/event";
 import type {
     Consumable,
     PushReadableStreamController,
@@ -68,7 +67,7 @@ export abstract class AdbScrcpyConnection implements Disposable {
 
     abstract getStreams(): ValueOrPromise<AdbScrcpyConnectionStreams>;
 
-    dispose(): void {
+    [Symbol.dispose](): void {
         // pure virtual method
     }
 }
@@ -135,7 +134,7 @@ export class AdbScrcpyForwardConnection extends AdbScrcpyConnection {
         return streams;
     }
 
-    override dispose(): void {
+    override [Symbol.dispose](): void {
         this.#disposed = true;
     }
 }
@@ -197,7 +196,7 @@ export class AdbScrcpyReverseConnection extends AdbScrcpyConnection {
         return streams;
     }
 
-    override dispose() {
+    override [Symbol.dispose]() {
         // Don't await this!
         // `reverse.remove`'s response will never arrive
         // before we read all pending data from Scrcpy streams

@@ -1,6 +1,5 @@
 import { PromiseResolver } from "@yume-chan/async";
-import type { Disposable } from "@yume-chan/event";
-import { AutoDisposable, EventEmitter } from "@yume-chan/event";
+import { EventEmitter } from "@yume-chan/event";
 
 let worker: Worker | undefined;
 let workerReady = false;
@@ -29,13 +28,15 @@ function subscribePictureReady(
     PICTURE_READY_SUBSCRIPTIONS.set(streamId, handler);
 
     return {
-        dispose() {
+        [Symbol.dispose]() {
             PICTURE_READY_SUBSCRIPTIONS.delete(streamId);
         },
     };
 }
 
-export class TinyH264Wrapper extends AutoDisposable {
+export class TinyH264Wrapper implements Disposable {
+    #disposables = new DisposableStack();
+
     readonly streamId: number;
 
     readonly #pictureReadyEvent = new EventEmitter<PictureReadyEventArgs>();
@@ -44,10 +45,8 @@ export class TinyH264Wrapper extends AutoDisposable {
     }
 
     constructor(streamId: number) {
-        super();
-
         this.streamId = streamId;
-        this.addDisposable(
+        this.#disposables.use(
             subscribePictureReady(streamId, this.#handlePictureReady),
         );
     }
@@ -69,8 +68,8 @@ export class TinyH264Wrapper extends AutoDisposable {
         );
     }
 
-    override dispose() {
-        super.dispose();
+    [Symbol.dispose]() {
+        this.#disposables.dispose();
         worker!.postMessage({
             type: "release",
             renderStateId: this.streamId,

@@ -286,18 +286,15 @@ export class PackageManager extends AdbCommandBase {
         stream: ReadableStream<Consumable<Uint8Array>>,
         options?: Partial<PackageManagerInstallOptions>,
     ): Promise<void> {
-        const sync = await this.adb.sync();
-
         const fileName = Math.random().toString().substring(2);
         const filePath = `/data/local/tmp/${fileName}.apk`;
 
-        try {
+        {
+            await using sync = await this.adb.sync();
             await sync.write({
                 filename: filePath,
                 file: stream,
             });
-        } finally {
-            await sync.dispose();
         }
 
         // Starting from Android 7, `pm` is only a wrapper for `cmd package`,

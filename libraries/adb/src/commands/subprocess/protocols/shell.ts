@@ -125,7 +125,7 @@ export class AdbSubprocessShellProtocol implements AdbSubprocessProtocol {
                 () => {
                     stdoutController.close();
                     stderrController.close();
-                    // If `#exit` has already resolved, this will be a no-op
+                    // If `#exit` has already settled, this will be a no-op
                     this.#exit.reject(
                         new Error("Socket ended without exit message"),
                     );
@@ -133,7 +133,7 @@ export class AdbSubprocessShellProtocol implements AdbSubprocessProtocol {
                 (e) => {
                     stdoutController.error(e);
                     stderrController.error(e);
-                    // If `#exit` has already resolved, this will be a no-op
+                    // If `#exit` has already settled, this will be a no-op
                     this.#exit.reject(e);
                 },
             );

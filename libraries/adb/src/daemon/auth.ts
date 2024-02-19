@@ -1,5 +1,4 @@
 import { PromiseResolver } from "@yume-chan/async";
-import type { Disposable } from "@yume-chan/event";
 import type { ValueOrPromise } from "@yume-chan/struct";
 import { EMPTY_UINT8_ARRAY } from "@yume-chan/struct";
 
@@ -142,7 +141,7 @@ export const ADB_DEFAULT_AUTHENTICATORS: AdbAuthenticator[] = [
     AdbPublicKeyAuthenticator,
 ];
 
-export class AdbAuthenticationProcessor implements Disposable {
+export class AdbAuthenticationProcessor implements AsyncDisposable {
     readonly authenticators: readonly AdbAuthenticator[];
 
     readonly #credentialStore: AdbCredentialStore;
@@ -196,7 +195,7 @@ export class AdbAuthenticationProcessor implements Disposable {
         return result.value;
     }
 
-    dispose() {
-        void this.#iterator?.return?.();
+    async [Symbol.asyncDispose]() {
+        await this.#iterator?.return?.();
     }
 }

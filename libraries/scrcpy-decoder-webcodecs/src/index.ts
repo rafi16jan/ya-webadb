@@ -222,7 +222,7 @@ export class WebCodecsDecoder implements ScrcpyVideoDecoder {
         );
     }
 
-    dispose() {
+    [Symbol.dispose]() {
         cancelAnimationFrame(this.#animationFrameId);
         if (this.#decoder.state !== "closed") {
             this.#decoder.close();

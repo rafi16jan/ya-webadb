@@ -125,7 +125,7 @@ export class AdbDaemonTransport implements AdbTransport {
         let maxPayloadSize = 1024 * 1024;
 
         const resolver = new PromiseResolver<string>();
-        const authProcessor = new AdbAuthenticationProcessor(
+        await using authProcessor = new AdbAuthenticationProcessor(
             authenticators,
             credentialStore,
         );
@@ -341,7 +341,7 @@ export class AdbDaemonTransport implements AdbTransport {
         this.#dispatcher.clearReverseTunnels();
     }
 
-    close(): ValueOrPromise<void> {
-        return this.#dispatcher.close();
+    async [Symbol.asyncDispose](): Promise<void> {
+        await this.#dispatcher[Symbol.asyncDispose]();
     }
 }

@@ -75,15 +75,11 @@ export async function adbSyncPushV1({
     mtime = (Date.now() / 1000) | 0,
     packetSize = ADB_SYNC_MAX_PACKET_SIZE,
 }: AdbSyncPushV1Options) {
-    const locked = await socket.lock();
-    try {
-        const mode = (type << 12) | permission;
-        const pathAndMode = `${filename},${mode.toString()}`;
-        await adbSyncWriteRequest(locked, AdbSyncRequestId.Send, pathAndMode);
-        await pipeFileData(locked, file, packetSize, mtime);
-    } finally {
-        locked.release();
-    }
+    using locked = await socket.lock();
+    const mode = (type << 12) | permission;
+    const pathAndMode = `${filename},${mode.toString()}`;
+    await adbSyncWriteRequest(locked, AdbSyncRequestId.Send, pathAndMode);
+    await pipeFileData(locked, file, packetSize, mtime);
 }
 
 export enum AdbSyncSendV2Flags {
@@ -128,27 +124,23 @@ export async function adbSyncPushV2({
     packetSize = ADB_SYNC_MAX_PACKET_SIZE,
     dryRun = false,
 }: AdbSyncPushV2Options) {
-    const locked = await socket.lock();
-    try {
-        await adbSyncWriteRequest(locked, AdbSyncRequestId.SendV2, filename);
+    using locked = await socket.lock();
+    await adbSyncWriteRequest(locked, AdbSyncRequestId.SendV2, filename);
 
-        const mode = (type << 12) | permission;
-        let flags: AdbSyncSendV2Flags = AdbSyncSendV2Flags.None;
-        if (dryRun) {
-            flags |= AdbSyncSendV2Flags.DryRun;
-        }
-        await locked.write(
-            AdbSyncSendV2Request.serialize({
-                id: AdbSyncRequestId.SendV2,
-                mode,
-                flags,
-            }),
-        );
-
-        await pipeFileData(locked, file, packetSize, mtime);
-    } finally {
-        locked.release();
+    const mode = (type << 12) | permission;
+    let flags: AdbSyncSendV2Flags = AdbSyncSendV2Flags.None;
+    if (dryRun) {
+        flags |= AdbSyncSendV2Flags.DryRun;
     }
+    await locked.write(
+        AdbSyncSendV2Request.serialize({
+            id: AdbSyncRequestId.SendV2,
+            mode,
+            flags,
+        }),
+    );
+
+    await pipeFileData(locked, file, packetSize, mtime);
 }
 
 export interface AdbSyncPushOptions extends AdbSyncPushV2Options {

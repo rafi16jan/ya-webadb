@@ -1,5 +1,4 @@
 import { PromiseResolver } from "@yume-chan/async";
-import type { Disposable } from "@yume-chan/event";
 import type {
     Consumable,
     PushReadableStreamController,
@@ -34,7 +33,7 @@ export interface AdbDaemonSocketConstructionOptions
 }
 
 export class AdbDaemonSocketController
-    implements AdbDaemonSocketInfo, AdbSocket, Disposable
+    implements AdbDaemonSocketInfo, Disposable
 {
     readonly #dispatcher!: AdbPacketDispatcher;
 
@@ -179,7 +178,7 @@ export class AdbDaemonSocketController
         );
     }
 
-    dispose() {
+    [Symbol.dispose]() {
         try {
             this.#readableController.close();
         } catch {
@@ -229,7 +228,11 @@ export class AdbDaemonSocket implements AdbDaemonSocketInfo, AdbSocket {
         this.#controller = controller;
     }
 
-    close() {
-        return this.#controller.close();
+    async [Symbol.asyncDispose]() {
+        await this.#controller.close();
+    }
+
+    async close() {
+        await this[Symbol.asyncDispose]();
     }
 }
