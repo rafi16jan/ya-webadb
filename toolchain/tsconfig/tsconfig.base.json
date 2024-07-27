@@ -31,6 +31,7 @@
         "noImplicitAny": true,
         "noImplicitThis": true,
         "noUncheckedIndexedAccess": true,
+        "noUncheckedSideEffectImports": true,
         "resolveJsonModule": true,
         /* Module Resolution Options */
         "moduleResolution": "NodeNext", //        /* Specify module resolution strategy: 'node' (Node.js) or 'classic' (TypeScript pre-1.6). */

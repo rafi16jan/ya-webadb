@@ -25,9 +25,9 @@ export interface AdbPrivateKey {
     name?: string | undefined;
 }
 
-export type AdbKeyIterable =
-    | Iterable<AdbPrivateKey>
-    | AsyncIterable<AdbPrivateKey>;
+export type AdbKeyIterator =
+    | BuiltinIterator<AdbPrivateKey, void, void>
+    | BuiltinAsyncIterator<AdbPrivateKey, void, void>;
 
 export interface AdbCredentialStore {
     /**
@@ -40,7 +40,7 @@ export interface AdbCredentialStore {
      *
      * Each call to `iterateKeys` must return a different iterator that iterate through all stored keys.
      */
-    iterateKeys(): AdbKeyIterable;
+    iterateKeys(): AdbKeyIterator;
 }
 
 export enum AdbAuthType {
@@ -64,13 +64,13 @@ export interface AdbAuthenticator {
     (
         credentialStore: AdbCredentialStore,
         getNextRequest: () => Promise<AdbPacketData>,
-    ): AsyncIterable<AdbPacketData>;
+    ): BuiltinAsyncIterator<AdbPacketData, void, void>;
 }
 
 export const AdbSignatureAuthenticator: AdbAuthenticator = async function* (
     credentialStore: AdbCredentialStore,
     getNextRequest: () => Promise<AdbPacketData>,
-): AsyncIterable<AdbPacketData> {
+): BuiltinAsyncIterator<AdbPacketData, void, void> {
     for await (const key of credentialStore.iterateKeys()) {
         const packet = await getNextRequest();
 
@@ -91,7 +91,7 @@ export const AdbSignatureAuthenticator: AdbAuthenticator = async function* (
 export const AdbPublicKeyAuthenticator: AdbAuthenticator = async function* (
     credentialStore: AdbCredentialStore,
     getNextRequest: () => Promise<AdbPacketData>,
-): AsyncIterable<AdbPacketData> {
+): BuiltinAsyncIterator<AdbPacketData, void, void> {
     const packet = await getNextRequest();
 
     if (packet.arg0 !== AdbAuthType.Token) {
